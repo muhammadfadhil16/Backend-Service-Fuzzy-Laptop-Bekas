@@ -9,4 +9,4 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 // Route untuk penilaian kelayakan laptop
-Route::post('/penilaian', [PenilaianController::class, 'perhitungan']);
+Route::post('/penilaian', [PenilaianController::class, 'penilaian']);

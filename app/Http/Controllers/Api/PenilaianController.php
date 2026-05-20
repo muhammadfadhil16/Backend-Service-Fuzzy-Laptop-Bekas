@@ -15,7 +15,7 @@ class PenilaianController extends Controller
         $this->fuzzyKelayakanService = $fuzzyKelayakanService;
     }
 
-    public function perhitungan(Request $request)
+    public function penilaian(Request $request)
     {
         // Validasi struktur
         $validated = $request->validate([
