@@ -2,7 +2,7 @@
 
 namespace App\Services\Fuzzy;
 
-class FuzzyKelayakanService
+class FuzzyService
 {
     public function calculate(array $input, array $rules): array
     {

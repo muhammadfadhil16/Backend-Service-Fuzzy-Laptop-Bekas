@@ -4,18 +4,18 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Services\Fuzzy\FuzzyKelayakanService;
+use App\Services\Fuzzy\FuzzyService;
 
-class PenilaianController extends Controller
+class EvaluationController extends Controller
 {
-    private FuzzyKelayakanService $fuzzyKelayakanService;
+    private FuzzyService $fuzzyService;
 
-    public function __construct(FuzzyKelayakanService $fuzzyKelayakanService)
+    public function __construct(FuzzyService $fuzzyService)
     {
-        $this->fuzzyKelayakanService = $fuzzyKelayakanService;
+        $this->fuzzyService = $fuzzyService;
     }
 
-    public function penilaian(Request $request)
+    public function evaluator(Request $request)
     {
         // Validasi struktur
         $validated = $request->validate([
@@ -32,7 +32,7 @@ class PenilaianController extends Controller
         ]);
 
         // Lempar input dan rules ke Service
-        $hasil = $this->fuzzyKelayakanService->calculate(
+        $hasil = $this->fuzzyService->calculate(
             $validated['input'], 
             $validated['rules']
         );
