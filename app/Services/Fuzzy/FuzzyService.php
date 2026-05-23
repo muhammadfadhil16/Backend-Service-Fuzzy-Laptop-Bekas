@@ -8,7 +8,7 @@ class FuzzyService
     {
         $lcd = $input['LCD'];
         $kesehatanBaterai = $input['KesehatanBaterai'];
-        $ram = $input['RAM'];
+        $processor = $input['Processor'];
         $kondisiKeyboard = $input['KondisiKeyboard'];
 
         // Ekstrak Rules untuk mempermudah pemanggilan
@@ -23,17 +23,26 @@ class FuzzyService
         $kesehatanBateraiNormal = $this->kurvaSegitiga($kesehatanBaterai, $rf['KesehatanBaterai']['normal'][0], $rf['KesehatanBaterai']['normal'][1], $rf['KesehatanBaterai']['normal'][2]);
         $kesehatanBateraiTinggi = $this->kurvaNaik($kesehatanBaterai, $rf['KesehatanBaterai']['tinggi'][0], $rf['KesehatanBaterai']['tinggi'][1]);
 
-        $ramRendah = $this->kurvaTurun($ram, $rf['RAM']['rendah'][0], $rf['RAM']['rendah'][1]);
-        $ramNormal = $this->kurvaSegitiga($ram, $rf['RAM']['normal'][0], $rf['RAM']['normal'][1], $rf['RAM']['normal'][2]);
-        $ramTinggi = $this->kurvaNaik($ram, $rf['RAM']['tinggi'][0], $rf['RAM']['tinggi'][1]);
+        $processorRendah = $this->kurvaTurun($processor, $rf['Processor']['rendah'][0], $rf['Processor']['rendah'][1]);
+        $processorNormal = $this->kurvaSegitiga($processor, $rf['Processor']['normal'][0], $rf['Processor']['normal'][1], $rf['Processor']['normal'][2]);
+        $processorTinggi = $this->kurvaNaik($processor, $rf['Processor']['tinggi'][0], $rf['Processor']['tinggi'][1]);
 
         $keyboardRendah = $this->kurvaTurun($kondisiKeyboard, $rf['KondisiKeyboard']['rendah'][0], $rf['KondisiKeyboard']['rendah'][1]);
         $keyboardTinggi = $this->kurvaNaik($kondisiKeyboard, $rf['KondisiKeyboard']['tinggi'][0], $rf['KondisiKeyboard']['tinggi'][1]);
 
         // Inferensi
-        $tidakLayak = max($lcdRendah, $kesehatanBateraiRendah, $ramRendah, $keyboardRendah);
-        $layak = ($lcdTinggi + $kesehatanBateraiTinggi + $ramTinggi + $keyboardTinggi) / 4;
-        $kurangLayak = max($kesehatanBateraiNormal, $ramNormal);
+        $tidakLayak = max($lcdRendah, $kesehatanBateraiRendah, $processorRendah, $keyboardRendah);
+        $kurangLayak = max($kesehatanBateraiNormal, $processorNormal);
+        $layak = min($lcdTinggi, $kesehatanBateraiTinggi, $processorTinggi, $keyboardTinggi);
+
+        // Normalisasi dan prioritas inferensi.
+        // Jika komponen kritis sudah sangat rendah, kategori yang lebih tinggi tidak boleh
+        // mengangkat skor secara berlebihan hanya karena satu parameter lain normal/tinggi.
+        $tidakLayak = min(1.0, $tidakLayak);
+        $kurangLayak = min(1.0, $kurangLayak);
+        $layak = min(1.0, $layak);
+        $kurangLayak = min($kurangLayak, 1.0 - $tidakLayak);
+        $layak = min($layak, 1.0 - max($tidakLayak, $kurangLayak));
 
         // Defuzzifikasi
         $tidakLayakCentroid = $rd['centroid']['tidak_layak'];
@@ -64,8 +73,13 @@ class FuzzyService
                     'normal' => $kesehatanBateraiNormal,
                     'tinggi' => $kesehatanBateraiTinggi,
                 ],
-                'RAM' => ['rendah' => $ramRendah, 'normal' => $ramNormal, 'tinggi' => $ramTinggi],
+                'Processor' => ['rendah' => $processorRendah, 'normal' => $processorNormal, 'tinggi' => $processorTinggi],
                 'Keyboard' => ['rendah' => $keyboardRendah, 'tinggi' => $keyboardTinggi],
+            ],
+            'inferensi' => [
+                'tidak_layak' => $tidakLayak,
+                'kurang_layak' => $kurangLayak,
+                'layak' => $layak,
             ],
             'nilaiKelayakan' => round($nilaiKelayakan, 2),
             'statusKelayakan' => $status,

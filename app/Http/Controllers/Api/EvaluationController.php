@@ -22,7 +22,7 @@ class EvaluationController extends Controller
             'input' => 'required|array',
             'input.LCD' => 'required|numeric|between:0,100',
             'input.KesehatanBaterai' => 'required|numeric|between:0,100',
-            'input.RAM' => 'required|numeric',
+            'input.Processor' => 'required|numeric',
             'input.KondisiKeyboard' => 'required|numeric|between:0,100',
             
             // Validasi Rules
