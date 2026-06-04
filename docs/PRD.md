@@ -107,7 +107,26 @@ Digunakan untuk melakukan kalkulasi kelayakan.
 
 ---
 
-## 7. Pengembangan Selanjutnya (Roadmap)
+## 7. Batasan dan Ruang Lingkup (Project Boundaries)
+
+### 7.1 Batasan Fungsional (Out of Scope)
+*   **Pencarian Harga Otomatis:** Sistem tidak melakukan *web scraping* atau integrasi ke e-commerce untuk mencari harga pasar secara otomatis. Harga pasar (`market_price`) murni berdasarkan input manual pengguna.
+*   **Otentikasi Pengguna:** Versi saat ini tidak memiliki sistem login/registrasi. API bersifat publik (atau diasumsikan berada dalam jaringan internal yang aman).
+*   **Manajemen Gambar:** Sistem tidak mendukung pengunggahan atau penyimpanan foto fisik laptop.
+*   **Variabel Penilaian Terbatas:** Penilaian saat ini hanya terbatas pada 4 komponen utama (LCD, Baterai, Processor, Keyboard). Komponen lain seperti kondisi engsel, port USB, atau webcam tidak masuk dalam hitungan skor fuzzy secara matematis.
+
+### 7.2 Batasan Teknis & Dependensi
+*   **Dependensi Microservice:** Keakuratan skor kelayakan sepenuhnya bergantung pada ketersediaan dan logika di `EvaluatorService`. Jika service tersebut mati, `BackendService` tidak dapat menghitung skor baru.
+*   **Koneksi Internet:** Diperlukan koneksi internet aktif untuk memanggil API Gemini AI. Jika koneksi terputus, sistem akan menggunakan *local fallback recommendation* (Simulasi AI).
+*   **Skalabilitas Database:** Database MySQL dirancang untuk penyimpanan riwayat penilaian, bukan untuk database spesifikasi laptop (katalog) yang sangat besar.
+
+### 7.3 Target Lingkungan
+*   Proyek ini dioptimalkan untuk berjalan di lingkungan **Docker**.
+*   Backend menggunakan standar REST API untuk berkomunikasi dengan Frontend.
+
+---
+
+## 8. Pengembangan Selanjutnya (Roadmap)
 *   [ ] Implementasi **Mamdani Rules** yang dinamis (saat ini rules `MAX/MIN` masih hardcoded di Service).
 *   [ ] Dukungan untuk kurva **Trapezoid**.
 *   [ ] Dashboard visualisasi kurva fuzzy untuk memudahkan admin menentukan titik potong (`a, b, c`).
