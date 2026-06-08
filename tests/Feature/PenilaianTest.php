@@ -11,33 +11,44 @@ class PenilaianTest extends TestCase
         return [
             'fuzzifikasi' => [
                 'LCD' => [
-                    'rendah' => [40, 60],
-                    'tinggi' => [60, 80]
-                ],
-                'KesehatanBaterai' => [
-                    'rendah' => [30, 50],
-                    'normal' => [30, 60, 85],
-                    'tinggi' => [70, 90]
-                ],
-                'Processor' => [
-                    'rendah' => [500, 10000],
-                    'normal' => [500, 10000, 15000],
-                    'tinggi' => [10000, 15000]
+                    'buruk' => [40, 60],
+                    'sedang' => [40, 50, 70, 80],
+                    'baik' => [60, 80]
                 ],
                 'KondisiKeyboard' => [
-                    'rendah' => [40, 70],
-                    'tinggi' => [70, 90]
+                    'buruk' => [40, 60],
+                    'sedang' => [40, 50, 70, 80],
+                    'baik' => [60, 80]
+                ],
+                'RAM' => [
+                    'rendah' => [2, 4],
+                    'sedang' => [2, 4, 8],
+                    'tinggi' => [4, 8]
+                ],
+                'KesehatanBaterai' => [
+                    'rendah' => [40, 60],
+                    'sedang' => [40, 60, 80],
+                    'tinggi' => [60, 80]
+                ],
+                'Processor' => [
+                    'rendah' => [1000, 2000],
+                    'sedang' => [1000, 2500, 4000],
+                    'tinggi' => [3000, 5000]
                 ]
             ],
             'defuzzifikasi' => [
-                'centroid' => [
-                    'tidak_layak' => 30,
-                    'kurang_layak' => 60,
-                    'layak' => 90
-                ],
-                'batas_status' => [
-                    'tidak_bagus' => 40,
-                    'normal' => 65
+                'tidak_layak' => [30, 50],
+                'cukup_layak' => [40, 60, 70, 90],
+                'layak' => [80, 100]
+            ],
+            'matrix_aturan' => [
+                [
+                    'lcd' => 'baik',
+                    'keyboard' => 'baik',
+                    'ram' => 'tinggi',
+                    'baterai' => 'tinggi',
+                    'processor' => 'tinggi',
+                    'output' => 'layak'
                 ]
             ]
         ];
@@ -51,9 +62,10 @@ class PenilaianTest extends TestCase
         $response = $this->postJson('/api/evaluator', [
             'input' => [
                 'LCD' => 80,
+                'KondisiKeyboard' => 85,
+                'RAM' => 8,
                 'KesehatanBaterai' => 70,
-                'Processor' => 8000,
-                'KondisiKeyboard' => 85
+                'Processor' => 4500
             ],
             'rules' => $this->getValidRules()
         ]);
@@ -79,9 +91,10 @@ class PenilaianTest extends TestCase
         $response = $this->postJson('/api/evaluator', [
             'input' => [
                 'LCD' => 150,
+                'KondisiKeyboard' => 85,
+                'RAM' => 8,
                 'KesehatanBaterai' => 70,
-                'Processor' => 8000,
-                'KondisiKeyboard' => 85
+                'Processor' => 4500
             ],
             'rules' => $this->getValidRules()
         ]);
@@ -112,9 +125,10 @@ class PenilaianTest extends TestCase
         $response = $this->postJson('/api/evaluator', [
             'input' => [
                 'LCD' => 40,
+                'KondisiKeyboard' => 40,
+                'RAM' => 2,
                 'KesehatanBaterai' => 30,
-                'Processor' => 4000,
-                'KondisiKeyboard' => 40
+                'Processor' => 1000
             ],
             'rules' => $this->getValidRules()
         ]);
@@ -125,7 +139,8 @@ class PenilaianTest extends TestCase
                 ]);
 
         $data = $response->json('data');
-        $this->assertLessThan(50, $data['nilaiKelayakan']);
+        $this->assertLessThanOrEqual(65, $data['nilaiKelayakan']);
+        $this->assertEquals('Tidak Layak', $data['statusKelayakan']);
     }
 
     /**
@@ -136,9 +151,10 @@ class PenilaianTest extends TestCase
         $response = $this->postJson('/api/evaluator', [
             'input' => [
                 'LCD' => 95,
+                'KondisiKeyboard' => 95,
+                'RAM' => 16,
                 'KesehatanBaterai' => 85,
-                'Processor' => 12000,
-                'KondisiKeyboard' => 95
+                'Processor' => 5000
             ],
             'rules' => $this->getValidRules()
         ]);
@@ -146,7 +162,8 @@ class PenilaianTest extends TestCase
         $response->assertStatus(200);
         
         $data = $response->json('data');
-        $this->assertGreaterThan(50, $data['nilaiKelayakan']);
+        $this->assertGreaterThan(85, $data['nilaiKelayakan']);
+        $this->assertEquals('Layak', $data['statusKelayakan']);
     }
 
     /**
@@ -157,9 +174,10 @@ class PenilaianTest extends TestCase
         $response = $this->postJson('/api/evaluator', [
             'input' => [
                 'LCD' => 80,
+                'KondisiKeyboard' => 85,
+                'RAM' => 8,
                 'KesehatanBaterai' => 70,
-                'Processor' => 'delapan',
-                'KondisiKeyboard' => 85
+                'Processor' => 'delapan'
             ],
             'rules' => $this->getValidRules()
         ]);

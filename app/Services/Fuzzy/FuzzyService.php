@@ -6,85 +6,153 @@ class FuzzyService
 {
     public function calculate(array $input, array $rules): array
     {
+        // 1. Ambil 5 Variabel Input sesuai Skripsi
         $lcd = $input['LCD'];
-        $kesehatanBaterai = $input['KesehatanBaterai'];
+        $keyboard = $input['KondisiKeyboard'];
+        $ram = $input['RAM']; // Variabel baru
+        $baterai = $input['KesehatanBaterai'];
         $processor = $input['Processor'];
-        $kondisiKeyboard = $input['KondisiKeyboard'];
 
-        // Ekstrak Rules untuk mempermudah pemanggilan
         $rf = $rules['fuzzifikasi'];
-        $rd = $rules['defuzzifikasi'];
 
-        // Fuzzifikasi
-        $lcdRendah = $this->kurvaTurun($lcd, $rf['LCD']['rendah'][0], $rf['LCD']['rendah'][1]);
-        $lcdTinggi = $this->kurvaNaik($lcd, $rf['LCD']['tinggi'][0], $rf['LCD']['tinggi'][1]);
+        // 2. TAHAP FUZZIFIKASI
+        // A. Kondisi LCD & Keyboard (Buruk, Sedang, Baik)
+        $lcdBuruk = $this->kurvaTurun($lcd, $rf['LCD']['buruk'][0], $rf['LCD']['buruk'][1]);
+        $lcdSedang = $this->kurvaTrapesium($lcd, $rf['LCD']['sedang'][0], $rf['LCD']['sedang'][1], $rf['LCD']['sedang'][2], $rf['LCD']['sedang'][3]);
+        $lcdBaik = $this->kurvaNaik($lcd, $rf['LCD']['baik'][0], $rf['LCD']['baik'][1]);
 
-        $kesehatanBateraiRendah = $this->kurvaTurun($kesehatanBaterai, $rf['KesehatanBaterai']['rendah'][0], $rf['KesehatanBaterai']['rendah'][1]);
-        $kesehatanBateraiNormal = $this->kurvaSegitiga($kesehatanBaterai, $rf['KesehatanBaterai']['normal'][0], $rf['KesehatanBaterai']['normal'][1], $rf['KesehatanBaterai']['normal'][2]);
-        $kesehatanBateraiTinggi = $this->kurvaNaik($kesehatanBaterai, $rf['KesehatanBaterai']['tinggi'][0], $rf['KesehatanBaterai']['tinggi'][1]);
+        $keyBuruk = $this->kurvaTurun($keyboard, $rf['KondisiKeyboard']['buruk'][0], $rf['KondisiKeyboard']['buruk'][1]);
+        $keySedang = $this->kurvaTrapesium($keyboard, $rf['KondisiKeyboard']['sedang'][0], $rf['KondisiKeyboard']['sedang'][1], $rf['KondisiKeyboard']['sedang'][2], $rf['KondisiKeyboard']['sedang'][3]);
+        $keyBaik = $this->kurvaNaik($keyboard, $rf['KondisiKeyboard']['baik'][0], $rf['KondisiKeyboard']['baik'][1]);
 
-        $processorRendah = $this->kurvaTurun($processor, $rf['Processor']['rendah'][0], $rf['Processor']['rendah'][1]);
-        $processorNormal = $this->kurvaSegitiga($processor, $rf['Processor']['normal'][0], $rf['Processor']['normal'][1], $rf['Processor']['normal'][2]);
-        $processorTinggi = $this->kurvaNaik($processor, $rf['Processor']['tinggi'][0], $rf['Processor']['tinggi'][1]);
+        // B. RAM, Baterai, Processor (Rendah, Sedang, Tinggi)
+        $ramRendah = $this->kurvaTurun($ram, $rf['RAM']['rendah'][0], $rf['RAM']['rendah'][1]);
+        $ramSedang = $this->kurvaSegitiga($ram, $rf['RAM']['sedang'][0], $rf['RAM']['sedang'][1], $rf['RAM']['sedang'][2]);
+        $ramTinggi = $this->kurvaNaik($ram, $rf['RAM']['tinggi'][0], $rf['RAM']['tinggi'][1]);
 
-        $keyboardRendah = $this->kurvaTurun($kondisiKeyboard, $rf['KondisiKeyboard']['rendah'][0], $rf['KondisiKeyboard']['rendah'][1]);
-        $keyboardTinggi = $this->kurvaNaik($kondisiKeyboard, $rf['KondisiKeyboard']['tinggi'][0], $rf['KondisiKeyboard']['tinggi'][1]);
+        $batRendah = $this->kurvaTurun($baterai, $rf['KesehatanBaterai']['rendah'][0], $rf['KesehatanBaterai']['rendah'][1]);
+        $batSedang = $this->kurvaSegitiga($baterai, $rf['KesehatanBaterai']['sedang'][0], $rf['KesehatanBaterai']['sedang'][1], $rf['KesehatanBaterai']['sedang'][2]);
+        $batTinggi = $this->kurvaNaik($baterai, $rf['KesehatanBaterai']['tinggi'][0], $rf['KesehatanBaterai']['tinggi'][1]);
 
-        // Inferensi
-        $tidakLayak = max($lcdRendah, $kesehatanBateraiRendah, $processorRendah, $keyboardRendah);
-        $kurangLayak = max($kesehatanBateraiNormal, $processorNormal);
-        $layak = min($lcdTinggi, $kesehatanBateraiTinggi, $processorTinggi, $keyboardTinggi);
+        $procRendah = $this->kurvaTurun($processor, $rf['Processor']['rendah'][0], $rf['Processor']['rendah'][1]);
+        $procSedang = $this->kurvaSegitiga($processor, $rf['Processor']['sedang'][0], $rf['Processor']['sedang'][1], $rf['Processor']['sedang'][2]);
+        $procTinggi = $this->kurvaNaik($processor, $rf['Processor']['tinggi'][0], $rf['Processor']['tinggi'][1]);
 
-        // Normalisasi dan prioritas inferensi.
-        // Jika komponen kritis sudah sangat rendah, kategori yang lebih tinggi tidak boleh
-        // mengangkat skor secara berlebihan hanya karena satu parameter lain normal/tinggi.
-        $tidakLayak = min(1.0, $tidakLayak);
-        $kurangLayak = min(1.0, $kurangLayak);
-        $layak = min(1.0, $layak);
-        $kurangLayak = min($kurangLayak, 1.0 - $tidakLayak);
-        $layak = min($layak, 1.0 - max($tidakLayak, $kurangLayak));
+        // 3. TAHAP INFERENSI (Mamdani - MIN/MAX Dinamis)
+        $rulesMatrix = $rules['matrix_aturan'] ?? [];
+        $outputs = [
+            'tidak_layak' => [],
+            'cukup_layak' => [],
+            'layak' => []
+        ];
 
-        // Defuzzifikasi
-        $tidakLayakCentroid = $rd['centroid']['tidak_layak'];
-        $kurangLayakCentroid = $rd['centroid']['kurang_layak'];
-        $layakCentroid = $rd['centroid']['layak'];
+        foreach ($rulesMatrix as $rule) {
+            // Pemetaan derajat keanggotaan berdasarkan label di matrix_aturan
+            $lcdVal = match($rule['lcd']) {
+                'buruk' => $lcdBuruk,
+                'sedang' => $lcdSedang,
+                'baik' => $lcdBaik,
+                default => 0.0
+            };
+            $keyVal = match($rule['keyboard']) {
+                'buruk' => $keyBuruk,
+                'sedang' => $keySedang,
+                'baik' => $keyBaik,
+                default => 0.0
+            };
+            $ramVal = match($rule['ram']) {
+                'rendah' => $ramRendah,
+                'sedang' => $ramSedang,
+                'tinggi' => $ramTinggi,
+                default => 0.0
+            };
+            $batVal = match($rule['baterai']) {
+                'rendah' => $batRendah,
+                'sedang' => $batSedang,
+                'tinggi' => $batTinggi,
+                default => 0.0
+            };
+            $procVal = match($rule['processor']) {
+                'rendah' => $procRendah,
+                'sedang' => $procSedang,
+                'tinggi' => $procTinggi,
+                default => 0.0
+            };
 
-        $pembilang = ($tidakLayak * $tidakLayakCentroid) + ($kurangLayak * $kurangLayakCentroid) + ($layak * $layakCentroid);
-        $penyebut = $tidakLayak + $kurangLayak + $layak;
-
-        $nilaiKelayakan = ($penyebut > 0) ? $pembilang / $penyebut : 0;
-
-        // Penentuan Status
-        if ($nilaiKelayakan < $rd['batas_status']['tidak_bagus']) {
-            $status = 'Tidak Bagus';
-        } elseif ($nilaiKelayakan < $rd['batas_status']['normal']) {
-            $status = 'Normal';
-        } else {
-            $status = 'Bagus';
+            // Rule Predicate (Alpha Predicate) menggunakan operator MIN (AND)
+            $alpha = min($lcdVal, $keyVal, $ramVal, $batVal, $procVal);
+            
+            if (isset($outputs[$rule['output']])) {
+                $outputs[$rule['output']][] = $alpha;
+            }
         }
 
-        // Return Data
+        // Agregasi menggunakan operator MAX (OR)
+        $tidakLayak = empty($outputs['tidak_layak']) ? 0.0 : max($outputs['tidak_layak']);
+        $cukupLayak = empty($outputs['cukup_layak']) ? 0.0 : max($outputs['cukup_layak']);
+        $layak = empty($outputs['layak']) ? 0.0 : max($outputs['layak']);
+
+        // Clip nilai agar tidak saling tumpang tindih secara tidak logis (Opsional, dipertahankan dari versi sebelumnya)
+        $tidakLayak = min(1.0, $tidakLayak);
+        $cukupLayak = min(1.0, $cukupLayak);
+        $layak = min(1.0, $layak);
+        $cukupLayak = min($cukupLayak, 1.0 - $tidakLayak);
+        $layak = min($layak, 1.0 - max($tidakLayak, $cukupLayak));
+
+        // 4. TAHAP DEFUZZIFIKASI (CENTROID MURNI / INTEGRAL DISKRIT)
+        $rd = $rules['defuzzifikasi']; // Berisi array batas [a,b,c,d] dari output skripsi
+        
+        $pembilang = 0.0;
+        $penyebut = 0.0;
+
+        // Sampling titik (z) dari 0 hingga 100
+        for ($z = 0; $z <= 100; $z++) {
+            // Hitung nilai keanggotaan (mu) pada titik z untuk masing-masing himpunan output
+            // Skripsi menggunakan: Tidak Layak (Turun), Cukup Layak (Trapesium), Layak (Naik)
+            $muTidakLayak = min($tidakLayak, $this->kurvaTurun($z, $rd['tidak_layak'][0], $rd['tidak_layak'][1]));
+            $muCukupLayak = min($cukupLayak, $this->kurvaTrapesium($z, $rd['cukup_layak'][0], $rd['cukup_layak'][1], $rd['cukup_layak'][2], $rd['cukup_layak'][3]));
+            $muLayak = min($layak, $this->kurvaNaik($z, $rd['layak'][0], $rd['layak'][1]));
+
+            // Agregasi (MAX) dari ketiga kurva yang terpotong (clipped)
+            $muZ = max($muTidakLayak, $muCukupLayak, $muLayak);
+
+            // Rumus integral diskrit COA: Σ(z * μ(z)) / Σμ(z)
+            $pembilang += ($z * $muZ);
+            $penyebut += $muZ;
+        }
+
+        $nilaiKelayakan = ($penyebut > 0) ? ($pembilang / $penyebut) : 50;
+
+        // 5. Penentuan Status
+        if ($nilaiKelayakan <= 65) {
+            $status = 'Tidak Layak';
+        } elseif ($nilaiKelayakan > 65 && $nilaiKelayakan <= 85) {
+            $status = 'Cukup Layak';
+        } else {
+            $status = 'Layak';
+        }
+
+        // Return Data Terstruktur
         return [
             'input' => $input,
             'fuzzifikasi' => [
-                'LCD' => ['rendah' => $lcdRendah, 'tinggi' => $lcdTinggi],
-                'KesehatanBaterai' => [
-                    'rendah' => $kesehatanBateraiRendah,
-                    'normal' => $kesehatanBateraiNormal,
-                    'tinggi' => $kesehatanBateraiTinggi,
-                ],
-                'Processor' => ['rendah' => $processorRendah, 'normal' => $processorNormal, 'tinggi' => $processorTinggi],
-                'Keyboard' => ['rendah' => $keyboardRendah, 'tinggi' => $keyboardTinggi],
+                'LCD' => ['buruk' => $lcdBuruk, 'sedang' => $lcdSedang, 'baik' => $lcdBaik],
+                'Keyboard' => ['buruk' => $keyBuruk, 'sedang' => $keySedang, 'baik' => $keyBaik],
+                'RAM' => ['rendah' => $ramRendah, 'sedang' => $ramSedang, 'tinggi' => $ramTinggi],
+                'KesehatanBaterai' => ['rendah' => $batRendah, 'sedang' => $batSedang, 'tinggi' => $batTinggi],
+                'Processor' => ['rendah' => $procRendah, 'sedang' => $procSedang, 'tinggi' => $procTinggi],
             ],
             'inferensi' => [
                 'tidak_layak' => $tidakLayak,
-                'kurang_layak' => $kurangLayak,
+                'cukup_layak' => $cukupLayak,
                 'layak' => $layak,
             ],
             'nilaiKelayakan' => round($nilaiKelayakan, 2),
             'statusKelayakan' => $status,
         ];
     }
+
+    // --- RUMUS MATEMATIKA FUNGSI KEANGGOTAAN ---
 
     private function kurvaTurun(float $x, float $a, float $b): float {
         if ($x <= $a) return 1.0;
@@ -103,5 +171,13 @@ class FuzzyService
         if ($x == $b) return 1.0;
         if ($x > $a && $x < $b) return ($x - $a) / ($b - $a);
         return ($c - $x) / ($c - $b);
+    }
+
+    // Fungsi Baru untuk Trapesium (Sesuai Skripsi Bab 3)
+    private function kurvaTrapesium(float $x, float $a, float $b, float $c, float $d): float {
+        if ($x <= $a || $x >= $d) return 0.0;
+        if ($x >= $b && $x <= $c) return 1.0;
+        if ($x > $a && $x < $b) return ($x - $a) / ($b - $a);
+        return ($d - $x) / ($d - $c);
     }
 }
