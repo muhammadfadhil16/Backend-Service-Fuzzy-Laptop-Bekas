@@ -10,14 +10,14 @@ BackendService
 EvaluatorService (FuzzyService)
     ↓
 Engine Fuzzy Mamdani:
-  Fuzzifikasi → Inferensi (MAX) → Defuzzifikasi (Centroid) → Status
+  Fuzzifikasi (5 variabel) → Inferensi Dinamis (MIN/MAX via matrix_aturan) → Defuzzifikasi (COA Diskrit) → Status
     ↓
 Response JSON
 ```
 
 **Karakteristik:**
 - **Stateless** — tidak ada koneksi database.
-- **Dinamis** — semua parameter kurva dan centroid dikirim dalam request.
+- **Dinamis** — semua parameter kurva dan matriks aturan dikirim dalam request.
 - **Port:** 8001 (Docker).
 
 ## 2. Struktur Folder
@@ -47,44 +47,49 @@ tests/
 {
     "input": {
         "LCD": 85,
+        "KondisiKeyboard": 90,
+        "RAM": 8,
         "KesehatanBaterai": 75,
-        "Processor": 12000,
-        "KondisiKeyboard": 90
+        "Processor": 12000
     },
     "rules": {
         "fuzzifikasi": {
             "LCD": {
-                "rendah": [40, 60],
-                "normal": [40, 60, 80],
-                "tinggi": [60, 80]
+                "buruk": [40, 60],
+                "sedang": [40, 50, 70, 80],
+                "baik": [60, 80]
+            },
+            "KondisiKeyboard": {
+                "buruk": [40, 60],
+                "sedang": [40, 50, 70, 80],
+                "baik": [60, 80]
+            },
+            "RAM": {
+                "rendah": [2, 4],
+                "sedang": [2, 4, 8],
+                "tinggi": [4, 8]
             },
             "KesehatanBaterai": {
                 "rendah": [30, 50],
-                "normal": [30, 60, 85],
+                "sedang": [30, 60, 85],
                 "tinggi": [70, 90]
             },
             "Processor": {
                 "rendah": [500, 10000],
-                "normal": [500, 10000, 15000],
+                "sedang": [500, 10000, 15000],
                 "tinggi": [10000, 15000]
-            },
-            "KondisiKeyboard": {
-                "rendah": [40, 70],
-                "normal": [40, 70, 90],
-                "tinggi": [70, 90]
             }
         },
         "defuzzifikasi": {
-            "centroid": {
-                "tidak_layak": 30,
-                "kurang_layak": 60,
-                "layak": 90
-            },
-            "batas_status": {
-                "tidak_bagus": 40,
-                "normal": 65
-            }
-        }
+            "tidak_layak": [30, 50],
+            "cukup_layak": [40, 60, 70, 90],
+            "layak": [80, 100]
+        },
+        "matrix_aturan": [
+            { "lcd": "buruk", "keyboard": "buruk", "ram": "rendah", "baterai": "rendah", "processor": "rendah", "output": "tidak_layak" },
+            { "lcd": "sedang", "keyboard": "sedang", "ram": "sedang", "baterai": "sedang", "processor": "sedang", "output": "cukup_layak" },
+            { "lcd": "baik", "keyboard": "baik", "ram": "tinggi", "baterai": "tinggi", "processor": "tinggi", "output": "layak" }
+        ]
     }
 }
 ```
@@ -94,11 +99,19 @@ tests/
 | Field | Aturan |
 |-------|--------|
 | `input.LCD` | required, numeric, between 0–100 |
-| `input.KesehatanBaterai` | required, numeric, between 0–100 |
-| `input.Processor` | required, numeric |
 | `input.KondisiKeyboard` | required, numeric, between 0–100 |
+| `input.RAM` | required, numeric, min:0 |
+| `input.KesehatanBaterai` | required, numeric, between 0–100 |
+| `input.Processor` | required, numeric, min:0 |
 | `rules.fuzzifikasi` | required, array |
 | `rules.defuzzifikasi` | required, array |
+| `rules.matrix_aturan` | required, array |
+| `rules.matrix_aturan.*.lcd` | required, string, in: buruk/sedang/baik |
+| `rules.matrix_aturan.*.keyboard` | required, string, in: buruk/sedang/baik |
+| `rules.matrix_aturan.*.ram` | required, string, in: rendah/sedang/tinggi |
+| `rules.matrix_aturan.*.baterai` | required, string, in: rendah/sedang/tinggi |
+| `rules.matrix_aturan.*.processor` | required, string, in: rendah/sedang/tinggi |
+| `rules.matrix_aturan.*.output` | required, string, in: tidak_layak/cukup_layak/layak |
 
 ### Response (200)
 
@@ -108,23 +121,25 @@ tests/
     "data": {
         "input": {
             "LCD": 85,
+            "KondisiKeyboard": 90,
+            "RAM": 8,
             "KesehatanBaterai": 75,
-            "Processor": 12000,
-            "KondisiKeyboard": 90
+            "Processor": 12000
         },
         "fuzzifikasi": {
-            "LCD": { "rendah": 0, "normal": 0.75, "tinggi": 1 },
-            "KesehatanBaterai": { "rendah": 0, "normal": 0.42, "tinggi": 0.58 },
-            "Processor": { "rendah": 0, "normal": 0.6, "tinggi": 0.4 },
-            "KondisiKeyboard": { "rendah": 0, "normal": 0, "tinggi": 1 }
+            "LCD": { "buruk": 0, "sedang": 0, "baik": 1 },
+            "Keyboard": { "buruk": 0, "sedang": 0, "baik": 1 },
+            "RAM": { "rendah": 0, "sedang": 0, "tinggi": 1 },
+            "KesehatanBaterai": { "rendah": 0, "sedang": 0.33, "tinggi": 0.67 },
+            "Processor": { "rendah": 0, "sedang": 0.6, "tinggi": 0.4 }
         },
         "inferensi": {
             "tidak_layak": 0,
-            "kurang_layak": 0.6,
+            "cukup_layak": 0,
             "layak": 1
         },
-        "nilaiKelayakan": 77.4,
-        "statusKelayakan": "Bagus"
+        "nilaiKelayakan": 90.68,
+        "statusKelayakan": "Layak"
     }
 }
 ```
@@ -147,148 +162,179 @@ Service utama: `FuzzyService::calculate(array $input, array $rules): array`
 Alur perhitungan:
 
 ```
-Input nilai crisp
+Input nilai crisp (5 variabel)
     ↓
 Fuzzifikasi: kurva → derajat keanggotaan [0, 1] per variabel per kategori
     ↓
-Inferensi: aturan IF-THEN dengan operator MAX (OR) → 3 kategori kelayakan
+Inferensi: iterasi matrix_aturan → MIN (AND) per aturan → MAX (OR) per kategori
     ↓
-Normalisasi: jika total bobot > 1, bagi setiap nilai dengan total
+Clipping: cukup_layak = min(cukup_layak, 1 - tidak_layak)
+          layak = min(layak, 1 - max(tidak_layak, cukup_layak))
     ↓
-Defuzzifikasi: Centroid Weighted Average → skor akhir 0–100
+Defuzzifikasi: Centroid of Area (COA) diskrit → skor akhir 0–100
     ↓
-Batas status: tentukan label "Tidak Bagus" / "Normal" / "Bagus"
+Batas status: tentukan label "Tidak Layak" / "Cukup Layak" / "Layak"
 ```
 
 ### 4.1 Fuzzifikasi
 
-Mendukung 3 jenis kurva keanggotaan. Parameter diambil dari `$rules['fuzzifikasi']`.
+Mendukung 4 jenis kurva keanggotaan. Parameter diambil dari `$rules['fuzzifikasi']`.
 
 #### a. Kurva Turun (Linear Down)
 
 ```
-        1 ┤
-          |\
-          | \
-    0 ┤---└──┴───
-          a   b
-
 μ = 1                    jika x ≤ a
     (b - x) / (b - a)    jika a < x < b
     0                    jika x ≥ b
 ```
 
+Parameter: `[a, b]`
+
+Digunakan untuk kategori **buruk/rendah** ( nilai kecil = derajat tinggi).
+
 #### b. Kurva Naik (Linear Up)
 
 ```
-        1 ┤      /
-          |     /
-          |    /
-    0 ┤---┴───└──
-          a   b
-
 μ = 0                    jika x ≤ a
     (x - a) / (b - a)    jika a < x < b
     1                    jika x ≥ b
 ```
 
+Parameter: `[a, b]`
+
+Digunakan untuk kategori **baik/tinggi** (nilai besar = derajat tinggi).
+
 #### c. Kurva Segitiga (Triangular)
 
 ```
-        1 ┤    /\
-          |   /  \
-          |  /    \
-    0 ┤---└──┴──┴──└---
-          a  b  c
-
 μ = 0                    jika x ≤ a atau x ≥ c
     (x - a) / (b - a)    jika a < x < b
     (c - x) / (c - b)    jika b ≤ x < c
 ```
 
-### 4.2 Inferensi (Mamdani)
+Parameter: `[a, b, c]`
 
-Menggabungkan hasil fuzzifikasi ke dalam 3 kategori kelayakan menggunakan operator **MAX** (setara dengan OR logika).
+Digunakan untuk kategori **sedang** pada RAM, KesehatanBaterai, dan Processor.
 
-**Rules:**
-
-| Kategori | Aturan |
-|----------|--------|
-| `tidak_layak` | MAX(LCD_rendah, KesehatanBaterai_rendah, Processor_rendah, KondisiKeyboard_rendah) |
-| `kurang_layak` | MAX(KesehatanBaterai_normal, Processor_normal, KondisiKeyboard_normal) |
-| `layak` | MAX(LCD_tinggi, KesehatanBaterai_tinggi, Processor_tinggi, KondisiKeyboard_tinggi) |
-
-**Normalisasi:** Jika `total_bobot = μ_tidak_layak + μ_kurang_layak + μ_layak > 1`, maka setiap nilai dibagi `total_bobot` agar berada di rentang [0, 1] dan totalnya = 1.
-
-### 4.3 Defuzzifikasi (Centroid Weighted Average)
+#### d. Kurva Trapesium (Trapezoidal)
 
 ```
-nilaiKelayakan = (μ_tidak_layak × C_tidak_layak + μ_kurang_layak × C_kurang_layak + μ_layak × C_layak)
-                 ─────────────────────────────────────────────────────────────────────────────
-                 (μ_tidak_layak + μ_kurang_layak + μ_layak)
+μ = 0                    jika x ≤ a atau x ≥ d
+    (x - a) / (b - a)    jika a < x < b
+    1                    jika b ≤ x ≤ c
+    (d - x) / (d - c)    jika c < x < d
 ```
 
-**Centroid default:** `tidak_layak = 30`, `kurang_layak = 60`, `layak = 90`
+Parameter: `[a, b, c, d]`
 
-Jika total bobot = 0 (penyebut = 0), maka `nilaiKelayakan = 0`.
+Digunakan untuk kategori **sedang** pada LCD dan KondisiKeyboard.
+
+### 4.2 Inferensi (Mamdani Dinamis)
+
+Tidak seperti pendekatan konvensional dengan aturan tetap, engine ini menggunakan **matriks aturan dinamis** yang dikirim melalui `rules.matrix_aturan`.
+
+**Proses inferensi:**
+
+1. **Iterasi setiap aturan** dalam `matrix_aturan`.
+2. Untuk setiap aturan, hitung **alpha-predikat** menggunakan operator **MIN** (AND logika) dari seluruh antecedent:
+   ```
+   α = min(μ_lcd, μ_keyboard, μ_ram, μ_baterai, μ_processor)
+   ```
+3. **Agregasi per kategori output** menggunakan operator **MAX** (OR logika):
+   ```
+   μ_kategori = max(α₁, α₂, ..., αₙ)  untuk semua aturan dengan output = kategori
+   ```
+4. **Clipping** untuk memastikan total derajat keanggotaan tidak melebihi 1:
+   ```
+   cukup_layak = min(cukup_layak, 1 - tidak_layak)
+   layak = min(layak, 1 - max(tidak_layak, cukup_layak))
+   ```
+
+Pendekatan ini memungkinkan fleksibilitas penuh dalam mendefinisikan hubungan antar variabel, karena pengirim request dapat menentukan aturan IF-THEN dalam bentuk `[lcd, keyboard, ram, baterai, processor] → output` sebanyak yang diperlukan (hingga 243 kemungkinan kombinasi dari 3⁵).
+
+### 4.3 Defuzzifikasi (Centroid of Area / COA Diskrit)
+
+Berbeda dengan metode centroid weighted average yang menggunakan titik pusat tunggal, engine ini menghitung **Center of Area (COA)** secara diskrit dengan sampling pada rentang 0–100:
+
+```
+          Σ(z · μ(z))
+nilai = ─────────────   untuk z = 0, 1, 2, ..., 100
+            Σμ(z)
+```
+
+Di mana untuk setiap nilai `z`:
+1. Hitung `μ_tidak_layak(z)` dengan kurva turun pada interval `[tidak_layak[0], tidak_layak[1]]`, lalu clip dengan hasil inferensi: `min(μ_tidak_layak(z), nilai_inferensi_tidak_layak)`.
+2. Hitung `μ_cukup_layak(z)` dengan kurva trapesium pada interval `[cukup_layak[0], cukup_layak[1], cukup_layak[2], cukup_layak[3]]`, lalu clip dengan hasil inferensi.
+3. Hitung `μ_layak(z)` dengan kurva naik pada interval `[layak[0], layak[1]]`, lalu clip dengan hasil inferensi.
+4. Ambil nilai maksimum dari ketiganya sebagai `μ(z)`.
+
+Parameter defuzzifikasi dikirim dalam `rules.defuzzifikasi` sebagai **parameter kurva**, bukan titik centroid:
+
+```json
+{
+    "tidak_layak": [30, 50],
+    "cukup_layak": [40, 60, 70, 90],
+    "layak": [80, 100]
+}
+```
+
+Jika total `Σμ(z) = 0` (penyebut = 0), maka nilai kelayakan dikembalikan sebagai **50** (nilai tengah).
 
 ### 4.4 Penentuan Status
 
-Menggunakan `$rules['defuzzifikasi']['batas_status']`:
+Menggunakan batas *hardcoded* (tidak dari request):
 
 | Rentang Skor | Status |
 |---|---|
-| 0 – ≤`tidak_bagus` (40) | **Tidak Bagus** |
-| >`tidak_bagus` – ≤`normal` (65) | **Normal** |
-| >`normal` – 100 | **Bagus** |
+| 0 – 65 | **Tidak Layak** |
+| >65 – 85 | **Cukup Layak** |
+| >85 – 100 | **Layak** |
 
 ### Contoh Perhitungan Lengkap
 
-**Input:** LCD=85, Baterai=75, Processor=12000, Keyboard=90
+**Input:** LCD=85, Keyboard=90, RAM=8, Baterai=75, Processor=12000
 
 **Fuzzifikasi:**
-- LCD: rendah=0, normal=0.75, tinggi=1
-- Baterai: rendah=0, normal=0.42, tinggi=0.58
-- Processor: rendah=0, normal=0.6, tinggi=0.4
-- Keyboard: rendah=0, normal=0, tinggi=1
+- LCD: buruk=0, sedang=0, baik=1
+- Keyboard: buruk=0, sedang=0, baik=1
+- RAM: rendah=0, sedang=0, tinggi=1
+- Baterai: rendah=0, sedang=0.33, tinggi=0.67
+- Processor: rendah=0, sedang=0.6, tinggi=0.4
 
-**Inferensi:**
-- tidak_layak = MAX(0, 0, 0, 0) = 0
-- kurang_layak = MAX(0.42, 0.6, 0) = 0.6
-- layak = MAX(1, 0.58, 0.4, 1) = 1
+**Inferensi (dengan matrix_aturan 3 aturan dasar):**
+- Aturan 1 (semua buruk/rendah → tidak_layak): α = min(0,0,0,0,0) = 0
+- Aturan 2 (semua sedang → cukup_layak): α = min(0,0,0,0.33,0.6) = 0
+- Aturan 3 (semua baik/tinggi → layak): α = min(1,1,1,0.67,0.4) = 0.4
 
-**Normalisasi:** Total = 0 + 0.6 + 1 = 1.6 > 1
-- tidak_layak = 0 / 1.6 = 0
-- kurang_layak = 0.6 / 1.6 = 0.375
-- layak = 1 / 1.6 = 0.625
+Agregasi: tidak_layak=0, cukup_layak=0, layak=0.4
 
-**Defuzzifikasi:**
-```
-nilaiKelayakan = (0 × 30 + 0.375 × 60 + 0.625 × 90) / (0 + 0.375 + 0.625)
-               = (0 + 22.5 + 56.25) / 1
-               = 78.75
-```
+**Clipping:** tidak_layak=0, cukup_layak=0, layak=min(0.4, 1-0) = 0.4
 
-**Status:** 78.75 > 65 → **"Bagus"**
+**Defuzzifikasi COA:** Sampling 0–100 menghasilkan nilai kelayakan ~90.68
+
+**Status:** 90.68 > 85 → **"Layak"**
 
 ## 5. Variabel Input
 
 | Variabel | Rentang | Kategori | Kurva |
 |----------|---------|----------|-------|
-| LCD | 0–100 | rendah | turun |
-| LCD | 0–100 | normal | segitiga |
-| LCD | 0–100 | tinggi | naik |
+| LCD | 0–100 | buruk | turun |
+| LCD | 0–100 | sedang | trapesium |
+| LCD | 0–100 | baik | naik |
+| KondisiKeyboard | 0–100 | buruk | turun |
+| KondisiKeyboard | 0–100 | sedang | trapesium |
+| KondisiKeyboard | 0–100 | baik | naik |
+| RAM | numeric (unbounded) | rendah | turun |
+| RAM | numeric (unbounded) | sedang | segitiga |
+| RAM | numeric (unbounded) | tinggi | naik |
 | KesehatanBaterai | 0–100 | rendah | turun |
-| KesehatanBaterai | 0–100 | normal | segitiga |
+| KesehatanBaterai | 0–100 | sedang | segitiga |
 | KesehatanBaterai | 0–100 | tinggi | naik |
 | Processor | numeric (unbounded) | rendah | turun |
-| Processor | numeric (unbounded) | normal | segitiga |
+| Processor | numeric (unbounded) | sedang | segitiga |
 | Processor | numeric (unbounded) | tinggi | naik |
-| KondisiKeyboard | 0–100 | rendah | turun |
-| KondisiKeyboard | 0–100 | normal | segitiga |
-| KondisiKeyboard | 0–100 | tinggi | naik |
 
-> **Catatan:** Berbeda dengan variabel lain, `Processor` tidak memiliki batas 0–100 karena menggunakan skor benchmark (numeric bebas). Parameter kurva harus disesuaikan oleh pengirim request.
+> **Catatan:** LCD, KondisiKeyboard, dan KesehatanBaterai memiliki batas 0–100 karena merupakan nilai persentase. RAM dan Processor menggunakan skor benchmark numerik bebas, sehingga parameter kurva harus disesuaikan oleh pengirim request.
 
 ## 6. Testing
 
@@ -296,17 +342,18 @@ nilaiKelayakan = (0 × 30 + 0.375 × 60 + 0.625 × 90) / (0 + 0.375 + 0.625)
 
 | Test | Skenario |
 |---|---|
-| `test_komponen_kritis_rendah_tidak_terangkat_oleh_processor_normal` | LCD=0, Baterai=0, Processor=10000, Keyboard=0 → status **"Tidak Bagus"** (nilai=30). Memastikan komponen kritis tidak terkompensasi oleh processor yang normal. |
+| `test_komponen_kritis_rendah_tidak_terangkat_oleh_processor_normal` | LCD=0, Keyboard=0, RAM=2, Baterai=0, Processor=3000 → inferensi `tidak_layak`=1.0, nilaiKelayakan ≤65, status **"Tidak Layak"**. Memastikan komponen kritis tidak terkompensasi oleh processor yang normal. |
 
 ### Feature Test — `tests/Feature/PenilaianTest.php`
 
 | Test | Skenario |
 |---|---|
-| `test_penilaian_dengan_input_valid` | Input laptop bagus → status **"Bagus"** |
-| `test_penilaian_dengan_input_rendah` | Input laptop rusak → status **"Tidak Bagus"** |
-| `test_validasi_input_kosong` | Field kosong → 422 |
-| `test_validasi_nilai_diluar_batas` | LCD=150 → 422 |
-| `test_penilaian_input_mendekati_batas_status` | Skor mendekati 40 → boundary test |
+| `test_penilaian_dengan_input_valid` | Input laptop bagus → status 200, struktur response lengkap |
+| `test_laptop_spesifikasi_rendah` | Input laptop rusak → nilaiKelayakan ≤65, status **"Tidak Layak"** |
+| `test_laptop_spesifikasi_tinggi` | Input laptop tinggi (RAM=16, Processor=5000) → nilaiKelayakan >85, status **"Layak"** |
+| `test_validasi_field_wajib_diisi` | Body kosong → 422 |
+| `test_validasi_lcd_harus_antara_0_100` | LCD=150 → 422 |
+| `test_processor_harus_numerik` | Processor="delapan" → 422 pada `input.Processor` |
 
 **Menjalankan test:**
 
@@ -325,4 +372,4 @@ php artisan test
 
 ---
 
-*Dokumentasi ini diperbarui pada 23 Mei 2026.*
+*Dokumentasi ini diperbarui pada 9 Juni 2026.*

@@ -1,5 +1,8 @@
 # EvaluatorService - Agent Instructions
 
+## Gemini Role
+You're fullstack engineer with more than 10 years experience, you always to apply clean code and maitainable code
+
 ## 📌 Role
 A stateless microservice dedicated to Fuzzy Logic computations using the Mamdani method.
 
