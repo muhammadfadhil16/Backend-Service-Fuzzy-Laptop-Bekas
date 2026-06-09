@@ -99,7 +99,7 @@ class FuzzyService
         $cukupLayak = min($cukupLayak, 1.0 - $tidakLayak);
         $layak = min($layak, 1.0 - max($tidakLayak, $cukupLayak));
 
-        // 4. TAHAP DEFUZZIFIKASI (CENTROID MURNI / INTEGRAL DISKRIT)
+        // TAHAP DEFUZZIFIKASI (CENTROID MURNI / INTEGRAL DISKRIT)
         $rd = $rules['defuzzifikasi']; // Berisi array batas [a,b,c,d] dari output skripsi
         
         $pembilang = 0.0;
@@ -123,7 +123,7 @@ class FuzzyService
 
         $nilaiKelayakan = ($penyebut > 0) ? ($pembilang / $penyebut) : 50;
 
-        // 5. Penentuan Status
+        // Penentuan Status
         if ($nilaiKelayakan <= 65) {
             $status = 'Tidak Layak';
         } elseif ($nilaiKelayakan > 65 && $nilaiKelayakan <= 85) {
