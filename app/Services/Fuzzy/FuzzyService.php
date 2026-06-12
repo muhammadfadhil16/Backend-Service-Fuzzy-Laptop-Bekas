@@ -99,29 +99,40 @@ class FuzzyService
         $cukupLayak = min($cukupLayak, 1.0 - $tidakLayak);
         $layak = min($layak, 1.0 - max($tidakLayak, $cukupLayak));
 
-        // TAHAP DEFUZZIFIKASI (CENTROID MURNI / INTEGRAL DISKRIT)
-        $rd = $rules['defuzzifikasi']; // Berisi array batas [a,b,c,d] dari output skripsi
+       // TAHAP DEFUZZIFIKASI (BISECTOR MURNI)
+        $rd = $rules['defuzzifikasi']; 
         
-        $pembilang = 0.0;
-        $penyebut = 0.0;
+        $muArray = [];
+        $totalArea = 0.0;
 
-        // Sampling titik (z) dari 0 hingga 100
+        // 1. Sampling titik (z) dari 0 hingga 100 dan simpan nilai keanggotaannya
         for ($z = 0; $z <= 100; $z++) {
-            // Hitung nilai keanggotaan (mu) pada titik z untuk masing-masing himpunan output
-            // Skripsi menggunakan: Tidak Layak (Turun), Cukup Layak (Trapesium), Layak (Naik)
             $muTidakLayak = min($tidakLayak, $this->kurvaTurun($z, $rd['tidak_layak'][0], $rd['tidak_layak'][1]));
             $muCukupLayak = min($cukupLayak, $this->kurvaTrapesium($z, $rd['cukup_layak'][0], $rd['cukup_layak'][1], $rd['cukup_layak'][2], $rd['cukup_layak'][3]));
             $muLayak = min($layak, $this->kurvaNaik($z, $rd['layak'][0], $rd['layak'][1]));
 
-            // Agregasi (MAX) dari ketiga kurva yang terpotong (clipped)
+            // Agregasi (MAX) area kurva
             $muZ = max($muTidakLayak, $muCukupLayak, $muLayak);
-
-            // Rumus integral diskrit COA: Σ(z * μ(z)) / Σμ(z)
-            $pembilang += ($z * $muZ);
-            $penyebut += $muZ;
+            
+            // Simpan nilai untuk perhitungan array Bisector
+            $muArray[$z] = $muZ;
+            $totalArea += $muZ;
         }
 
-        $nilaiKelayakan = ($penyebut > 0) ? ($pembilang / $penyebut) : 50;
+        // 2. Logika pencarian titik Bisector (Membagi area jadi 2 seimbang)
+        $nilaiKelayakan = 50;
+        if ($totalArea > 0) {
+            $targetArea = $totalArea / 2.0;
+            $accumulatedArea = 0.0;
+            for ($z = 0; $z <= 100; $z++) {
+                $accumulatedArea += $muArray[$z]; 
+                
+                if ($accumulatedArea >= $targetArea) {
+                    $nilaiKelayakan = $z; 
+                    break;
+                }
+            }
+        }
 
         // Penentuan Status
         if ($nilaiKelayakan <= 65) {
