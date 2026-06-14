@@ -21,5 +21,5 @@ A stateless microservice dedicated to Fuzzy Logic computations using the Mamdani
 4. **Testing**: Prioritize Unit Tests (`tests/Unit/FuzzyServiceTest.php`) for the mathematical engine and Feature Tests for the API contract.
 
 ## 🧮 Logic Overview
-- **Inference**: Uses **MAX** operator for OR logic.
-- **Defuzzification**: Uses **Centroid Weighted Average**.
+- **Inference**: Uses **MAX** operator for OR logic (S-Norm).
+- **Defuzzification**: Uses **Bisector of Area (BOA)** — finds point z that splits aggregated area into two equal halves.

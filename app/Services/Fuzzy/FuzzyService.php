@@ -18,24 +18,24 @@ class FuzzyService
         // 2. TAHAP FUZZIFIKASI
         // A. Kondisi LCD & Keyboard (Buruk, Sedang, Baik)
         $lcdBuruk = $this->kurvaTurun($lcd, $rf['LCD']['buruk'][0], $rf['LCD']['buruk'][1]);
-        $lcdSedang = $this->kurvaTrapesium($lcd, $rf['LCD']['sedang'][0], $rf['LCD']['sedang'][1], $rf['LCD']['sedang'][2], $rf['LCD']['sedang'][3]);
+        $lcdSedang = $this->evaluateSedang($lcd, $rf['LCD']['sedang']);
         $lcdBaik = $this->kurvaNaik($lcd, $rf['LCD']['baik'][0], $rf['LCD']['baik'][1]);
 
         $keyBuruk = $this->kurvaTurun($keyboard, $rf['KondisiKeyboard']['buruk'][0], $rf['KondisiKeyboard']['buruk'][1]);
-        $keySedang = $this->kurvaTrapesium($keyboard, $rf['KondisiKeyboard']['sedang'][0], $rf['KondisiKeyboard']['sedang'][1], $rf['KondisiKeyboard']['sedang'][2], $rf['KondisiKeyboard']['sedang'][3]);
+        $keySedang = $this->evaluateSedang($keyboard, $rf['KondisiKeyboard']['sedang']);
         $keyBaik = $this->kurvaNaik($keyboard, $rf['KondisiKeyboard']['baik'][0], $rf['KondisiKeyboard']['baik'][1]);
 
         // B. RAM, Baterai, Processor (Rendah, Sedang, Tinggi)
         $ramRendah = $this->kurvaTurun($ram, $rf['RAM']['rendah'][0], $rf['RAM']['rendah'][1]);
-        $ramSedang = $this->kurvaSegitiga($ram, $rf['RAM']['sedang'][0], $rf['RAM']['sedang'][1], $rf['RAM']['sedang'][2]);
+        $ramSedang = $this->evaluateSedang($ram, $rf['RAM']['sedang']);
         $ramTinggi = $this->kurvaNaik($ram, $rf['RAM']['tinggi'][0], $rf['RAM']['tinggi'][1]);
 
         $batRendah = $this->kurvaTurun($baterai, $rf['KesehatanBaterai']['rendah'][0], $rf['KesehatanBaterai']['rendah'][1]);
-        $batSedang = $this->kurvaSegitiga($baterai, $rf['KesehatanBaterai']['sedang'][0], $rf['KesehatanBaterai']['sedang'][1], $rf['KesehatanBaterai']['sedang'][2]);
+        $batSedang = $this->evaluateSedang($baterai, $rf['KesehatanBaterai']['sedang']);
         $batTinggi = $this->kurvaNaik($baterai, $rf['KesehatanBaterai']['tinggi'][0], $rf['KesehatanBaterai']['tinggi'][1]);
 
         $procRendah = $this->kurvaTurun($processor, $rf['Processor']['rendah'][0], $rf['Processor']['rendah'][1]);
-        $procSedang = $this->kurvaSegitiga($processor, $rf['Processor']['sedang'][0], $rf['Processor']['sedang'][1], $rf['Processor']['sedang'][2]);
+        $procSedang = $this->evaluateSedang($processor, $rf['Processor']['sedang']);
         $procTinggi = $this->kurvaNaik($processor, $rf['Processor']['tinggi'][0], $rf['Processor']['tinggi'][1]);
 
         // 3. TAHAP INFERENSI (Mamdani - MIN/MAX Dinamis)
@@ -92,21 +92,19 @@ class FuzzyService
         $cukupLayak = empty($outputs['cukup_layak']) ? 0.0 : max($outputs['cukup_layak']);
         $layak = empty($outputs['layak']) ? 0.0 : max($outputs['layak']);
 
-        // Clip nilai agar tidak saling tumpang tindih secara tidak logis (Opsional, dipertahankan dari versi sebelumnya)
         $tidakLayak = min(1.0, $tidakLayak);
         $cukupLayak = min(1.0, $cukupLayak);
         $layak = min(1.0, $layak);
-        $cukupLayak = min($cukupLayak, 1.0 - $tidakLayak);
-        $layak = min($layak, 1.0 - max($tidakLayak, $cukupLayak));
 
-       // TAHAP DEFUZZIFIKASI (BISECTOR MURNI)
+        // TAHAP DEFUZZIFIKASI (BISECTOR MURNI - FLOAT SAMPLING)
         $rd = $rules['defuzzifikasi']; 
         
         $muArray = [];
         $totalArea = 0.0;
+        $step = 0.1; // Precise float sampling
 
-        // 1. Sampling titik (z) dari 0 hingga 100 dan simpan nilai keanggotaannya
-        for ($z = 0; $z <= 100; $z++) {
+        // 1. Sampling titik (z) dari 0 hingga 100 menggunakan step float
+        for ($z = 0.0; $z <= 100.0; $z = round($z + $step, 1)) {
             $muTidakLayak = min($tidakLayak, $this->kurvaTurun($z, $rd['tidak_layak'][0], $rd['tidak_layak'][1]));
             $muCukupLayak = min($cukupLayak, $this->kurvaTrapesium($z, $rd['cukup_layak'][0], $rd['cukup_layak'][1], $rd['cukup_layak'][2], $rd['cukup_layak'][3]));
             $muLayak = min($layak, $this->kurvaNaik($z, $rd['layak'][0], $rd['layak'][1]));
@@ -115,20 +113,23 @@ class FuzzyService
             $muZ = max($muTidakLayak, $muCukupLayak, $muLayak);
             
             // Simpan nilai untuk perhitungan array Bisector
-            $muArray[$z] = $muZ;
+            $muArray[] = [
+                'z' => $z,
+                'mu' => $muZ
+            ];
             $totalArea += $muZ;
         }
 
         // 2. Logika pencarian titik Bisector (Membagi area jadi 2 seimbang)
-        $nilaiKelayakan = 50;
+        $nilaiKelayakan = 50.0;
         if ($totalArea > 0) {
             $targetArea = $totalArea / 2.0;
             $accumulatedArea = 0.0;
-            for ($z = 0; $z <= 100; $z++) {
-                $accumulatedArea += $muArray[$z]; 
+            foreach ($muArray as $item) {
+                $accumulatedArea += $item['mu']; 
                 
                 if ($accumulatedArea >= $targetArea) {
-                    $nilaiKelayakan = $z; 
+                    $nilaiKelayakan = $item['z']; 
                     break;
                 }
             }
@@ -190,5 +191,12 @@ class FuzzyService
         if ($x >= $b && $x <= $c) return 1.0;
         if ($x > $a && $x < $b) return ($x - $a) / ($b - $a);
         return ($d - $x) / ($d - $c);
+    }
+
+    private function evaluateSedang(float $x, array $params): float {
+        if (count($params) === 4) {
+            return $this->kurvaTrapesium($x, $params[0], $params[1], $params[2], $params[3]);
+        }
+        return $this->kurvaSegitiga($x, $params[0], $params[1], $params[2]);
     }
 }

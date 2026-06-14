@@ -15,7 +15,7 @@
 * **Framework:** Laravel 12.x
 * **Bahasa:** PHP 8.2+
 * **Arsitektur:** Microservice (Stateless) — Tidak menggunakan database internal. Semua data parameter kurva dan kombinasi aturan (matrix rules) dikirim via request body.
-* **Metode Logic:** Fuzzy Mamdani (Fuzzifikasi → Inferensi Kombinasi Dinamis MIN-MAX → Defuzzifikasi Centroid of Area Diskrit).
+* **Metode Logic:** Fuzzy Mamdani (Fuzzifikasi → Inferensi Kombinasi Dinamis MIN-MAX → Defuzzifikasi **Bisector of Area (BOA) Diskrit**).
 * **Deployment:** Docker Ready (Port 8001).
 
 ---
@@ -44,11 +44,15 @@ Aturan dieksekusi secara berulang (*looping parsing*) menggunakan matriks kombin
 * **Clipping:** Setelah agregasi, nilai `cukup_layak` dan `layak` diklip agar tidak melebihi 1 secara kumulatif.
 
 ### 3.4 Defuzzifikasi (Crisp Output)
-Menggunakan metode **Centroid of Area (COA) diskrit / Sampling Loop z** untuk menghasilkan nilai akhir kelayakan laptop (skor 0-100):
+Menggunakan metode **Bisector of Area (BOA) diskrit / Sampling Loop z** untuk menghasilkan nilai akhir kelayakan laptop (skor 0-100):
 
-$$Nilai Kelayakan = \frac{\sum_{z=0}^{100} (\mu(z) \times z)}{\sum_{z=0}^{100} \mu(z)}$$
+Algoritma BOA mencari titik $z$ yang membagi luas area agregasi menjadi dua bagian yang sama besar:
+1. Hitung total area: $\text{TotalArea} = \sum_{z=0}^{100} \mu(z)$
+2. Target area: $\text{TargetArea} = \text{TotalArea} / 2$
+3. Akumulasi $\mu(z)$ dari $z=0$ hingga mencapai $\text{TargetArea}$
+4. Nilai $z$ saat akumulasi $\geq$ target adalah skor kelayakan
 
-Di mana μ(z) adalah nilai maksimum dari ketiga kurva output (tidak_layak, cukup_layak, layak) yang sudah diklip dengan hasil inferensi pada setiap titik z.
+Di mana $\mu(z)$ adalah nilai maksimum dari ketiga kurva output (tidak_layak, cukup_layak, layak) yang sudah diklip dengan hasil inferensi pada setiap titik $z$.
 
 ---
 
@@ -151,4 +155,4 @@ Digunakan untuk melakukan kalkulasi mesin fuzzy.
 
 ---
 
-*Dokumen ini diperbarui pada 9 Juni 2026.*
+*Dokumen ini diperbarui pada 13 Juni 2026.*
