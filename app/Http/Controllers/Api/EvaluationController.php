@@ -22,7 +22,7 @@ class EvaluationController extends Controller
             'input' => 'required|array',
             'input.LCD' => 'required|numeric|between:0,100',
             'input.KondisiKeyboard' => 'required|numeric|between:0,100',
-            'input.RAM' => 'required|numeric|min:0', // BARU: Ditambahkan sesuai skripsi
+            'input.RAM' => 'required|numeric|min:0',
             'input.KesehatanBaterai' => 'required|numeric|between:0,100',
             'input.Processor' => 'required|numeric|min:0',
             
@@ -39,6 +39,11 @@ class EvaluationController extends Controller
             'rules.matrix_aturan.*.baterai' => 'required|string|in:rendah,sedang,tinggi',
             'rules.matrix_aturan.*.processor' => 'required|string|in:rendah,sedang,tinggi',
             'rules.matrix_aturan.*.output' => 'required|string|in:tidak_layak,cukup_layak,layak',
+
+            // Validasi Threshold Batas Kelayakan Dinamis
+            'rules.thresholds' => 'required|array',
+            'rules.thresholds.tidak_layak_batas' => 'required|numeric|between:0,100',
+            'rules.thresholds.layak_batas' => 'required|numeric|between:0,100',
         ]);
 
         // Lempar input dan rules ke Service

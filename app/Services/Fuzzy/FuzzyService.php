@@ -17,24 +17,24 @@ class FuzzyService
 
         // 2. TAHAP FUZZIFIKASI
         // A. Kondisi LCD & Keyboard (Buruk, Sedang, Baik)
-        $lcdBuruk = $this->kurvaTurun($lcd, $rf['LCD']['buruk'][0], $rf['LCD']['buruk'][1]);
+        $lcdBuruk = $this->kurvaTurun($lcd, $rf['LCD']['buruk'][2], $rf['LCD']['buruk'][3]);
         $lcdSedang = $this->evaluateSedang($lcd, $rf['LCD']['sedang']);
         $lcdBaik = $this->kurvaNaik($lcd, $rf['LCD']['baik'][0], $rf['LCD']['baik'][1]);
 
-        $keyBuruk = $this->kurvaTurun($keyboard, $rf['KondisiKeyboard']['buruk'][0], $rf['KondisiKeyboard']['buruk'][1]);
+        $keyBuruk = $this->kurvaTurun($keyboard, $rf['KondisiKeyboard']['buruk'][2], $rf['KondisiKeyboard']['buruk'][3]);
         $keySedang = $this->evaluateSedang($keyboard, $rf['KondisiKeyboard']['sedang']);
         $keyBaik = $this->kurvaNaik($keyboard, $rf['KondisiKeyboard']['baik'][0], $rf['KondisiKeyboard']['baik'][1]);
 
         // B. RAM, Baterai, Processor (Rendah, Sedang, Tinggi)
-        $ramRendah = $this->kurvaTurun($ram, $rf['RAM']['rendah'][0], $rf['RAM']['rendah'][1]);
+        $ramRendah = $this->kurvaTurun($ram, $rf['RAM']['rendah'][2], $rf['RAM']['rendah'][3]);
         $ramSedang = $this->evaluateSedang($ram, $rf['RAM']['sedang']);
         $ramTinggi = $this->kurvaNaik($ram, $rf['RAM']['tinggi'][0], $rf['RAM']['tinggi'][1]);
 
-        $batRendah = $this->kurvaTurun($baterai, $rf['KesehatanBaterai']['rendah'][0], $rf['KesehatanBaterai']['rendah'][1]);
+        $batRendah = $this->kurvaTurun($baterai, $rf['KesehatanBaterai']['rendah'][2], $rf['KesehatanBaterai']['rendah'][3]);
         $batSedang = $this->evaluateSedang($baterai, $rf['KesehatanBaterai']['sedang']);
         $batTinggi = $this->kurvaNaik($baterai, $rf['KesehatanBaterai']['tinggi'][0], $rf['KesehatanBaterai']['tinggi'][1]);
 
-        $procRendah = $this->kurvaTurun($processor, $rf['Processor']['rendah'][0], $rf['Processor']['rendah'][1]);
+        $procRendah = $this->kurvaTurun($processor, $rf['Processor']['rendah'][2], $rf['Processor']['rendah'][3]);
         $procSedang = $this->evaluateSedang($processor, $rf['Processor']['sedang']);
         $procTinggi = $this->kurvaNaik($processor, $rf['Processor']['tinggi'][0], $rf['Processor']['tinggi'][1]);
 
@@ -48,7 +48,7 @@ class FuzzyService
 
         foreach ($rulesMatrix as $rule) {
             // Pemetaan derajat keanggotaan berdasarkan label di matrix_aturan
-            $lcdVal = match($rule['lcd']) {
+            $lcdVal = match($rule['lcd']){
                 'buruk' => $lcdBuruk,
                 'sedang' => $lcdSedang,
                 'baik' => $lcdBaik,
@@ -105,7 +105,7 @@ class FuzzyService
 
         // 1. Sampling titik (z) dari 0 hingga 100 menggunakan step float
         for ($z = 0.0; $z <= 100.0; $z = round($z + $step, 1)) {
-            $muTidakLayak = min($tidakLayak, $this->kurvaTurun($z, $rd['tidak_layak'][0], $rd['tidak_layak'][1]));
+            $muTidakLayak = min($tidakLayak, $this->kurvaTurun($z, $rd['tidak_layak'][2], $rd['tidak_layak'][3]));
             $muCukupLayak = min($cukupLayak, $this->kurvaTrapesium($z, $rd['cukup_layak'][0], $rd['cukup_layak'][1], $rd['cukup_layak'][2], $rd['cukup_layak'][3]));
             $muLayak = min($layak, $this->kurvaNaik($z, $rd['layak'][0], $rd['layak'][1]));
 
@@ -135,10 +135,13 @@ class FuzzyService
             }
         }
 
-        // Penentuan Status
-        if ($nilaiKelayakan <= 65) {
+        // Penentuan Status Berdasarkan Threshold Dinamis dari Database
+        $batasTidakLayak = $rules['thresholds']['tidak_layak_batas'] ?? 65;
+        $batasLayak = $rules['thresholds']['layak_batas'] ?? 85;
+
+        if ($nilaiKelayakan <= $batasTidakLayak) {
             $status = 'Tidak Layak';
-        } elseif ($nilaiKelayakan > 65 && $nilaiKelayakan <= 85) {
+        } elseif ($nilaiKelayakan > $batasTidakLayak && $nilaiKelayakan <= $batasLayak) {
             $status = 'Cukup Layak';
         } else {
             $status = 'Layak';

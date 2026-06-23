@@ -55,41 +55,45 @@ tests/
     "rules": {
         "fuzzifikasi": {
             "LCD": {
-                "buruk": [40, 60],
-                "sedang": [40, 50, 70, 80],
-                "baik": [60, 80]
+                "buruk": [0, 0, 55, 65],
+                "sedang": [55, 65, 75, 85],
+                "baik": [75, 85, 100, 100]
             },
             "KondisiKeyboard": {
-                "buruk": [40, 60],
-                "sedang": [40, 50, 70, 80],
-                "baik": [60, 80]
+                "buruk": [0, 0, 55, 65],
+                "sedang": [55, 65, 75, 85],
+                "baik": [75, 85, 100, 100]
             },
             "RAM": {
-                "rendah": [2, 4],
-                "sedang": [2, 4, 8],
-                "tinggi": [4, 8]
+                "rendah": [4, 4, 6, 8],
+                "sedang": [6, 8, 12],
+                "tinggi": [8, 12, 64, 64]
             },
             "KesehatanBaterai": {
-                "rendah": [30, 50],
-                "sedang": [30, 60, 85],
-                "tinggi": [70, 90]
+                "rendah": [0, 0, 60, 70],
+                "sedang": [60, 70, 85],
+                "tinggi": [70, 85, 100, 100]
             },
             "Processor": {
-                "rendah": [500, 10000],
-                "sedang": [500, 10000, 15000],
-                "tinggi": [10000, 15000]
+                "rendah": [0, 0, 8000, 10000],
+                "sedang": [8000, 10000, 18000, 20000],
+                "tinggi": [18000, 20000, 64946, 64946]
             }
         },
         "defuzzifikasi": {
-            "tidak_layak": [30, 50],
-            "cukup_layak": [40, 60, 70, 90],
-            "layak": [80, 100]
+            "tidak_layak": [0, 0, 55, 65],
+            "cukup_layak": [55, 65, 85, 90],
+            "layak": [85, 90, 100, 100]
         },
         "matrix_aturan": [
             { "lcd": "buruk", "keyboard": "buruk", "ram": "rendah", "baterai": "rendah", "processor": "rendah", "output": "tidak_layak" },
             { "lcd": "sedang", "keyboard": "sedang", "ram": "sedang", "baterai": "sedang", "processor": "sedang", "output": "cukup_layak" },
             { "lcd": "baik", "keyboard": "baik", "ram": "tinggi", "baterai": "tinggi", "processor": "tinggi", "output": "layak" }
-        ]
+        ],
+        "thresholds": {
+            "tidak_layak_batas": 65.00,
+            "layak_batas": 85.00
+        }
     }
 }
 ```
@@ -112,6 +116,9 @@ tests/
 | `rules.matrix_aturan.*.baterai` | required, string, in: rendah/sedang/tinggi |
 | `rules.matrix_aturan.*.processor` | required, string, in: rendah/sedang/tinggi |
 | `rules.matrix_aturan.*.output` | required, string, in: tidak_layak/cukup_layak/layak |
+| `rules.thresholds` | required, array |
+| `rules.thresholds.tidak_layak_batas` | required, numeric, between 0–100 |
+| `rules.thresholds.layak_batas` | required, numeric, between 0–100 |
 
 ### Response (200)
 
@@ -164,35 +171,32 @@ Alur perhitungan:
 ```
 Input nilai crisp (5 variabel)
     ↓
-Fuzzifikasi: kurva → derajat keanggotaan [0, 1] per variabel per kategori
+Fuzzifikasi: kurva trapesium/segitiga → derajat keanggotaan [0, 1] per variabel per kategori
     ↓
-Inferensi: iterasi matrix_aturan → MIN (AND) per aturan → MAX (OR) per kategori
+Inferensi: iterasi 243 matrix_aturan → MIN (AND) per aturan → MAX (OR) per kategori
     ↓
-Clipping: cukup_layak = min(cukup_layak, 1 - tidak_layak)
-          layak = min(layak, 1 - max(tidak_layak, cukup_layak))
+Defuzzifikasi: Bisector of Area (BOA) sampling float step 0.1 → skor akhir 0–100
     ↓
-Defuzzifikasi: Centroid of Area (COA) diskrit → skor akhir 0–100
-    ↓
-Batas status: tentukan label "Tidak Layak" / "Cukup Layak" / "Layak"
+Penentuan status: bandingkan skor dengan thresholds dinamis dari database
 ```
 
 ### 4.1 Fuzzifikasi
 
 Mendukung 4 jenis kurva keanggotaan. Parameter diambil dari `$rules['fuzzifikasi']`.
 
-#### a. Kurva Turun (Linear Down)
+#### a. Kurva Trapesium untuk kategori Buruk/Rendah (*menurun*)
 
 ```
-μ = 1                    jika x ≤ a
-    (b - x) / (b - a)    jika a < x < b
-    0                    jika x ≥ b
+μ = 1                    jika x ≤ c
+    (d - x) / (d - c)    jika c < x < d
+    0                    jika x ≥ d
 ```
 
-Parameter: `[a, b]`
+Parameter dari kurva trapesium `[a, b, c, d]`, bagian menurun menggunakan **c** dan **d** (index [2] dan [3]).
 
-Digunakan untuk kategori **buruk/rendah** ( nilai kecil = derajat tinggi).
+Digunakan untuk kategori **buruk/rendah** (nilai kecil = derajat tinggi).
 
-#### b. Kurva Naik (Linear Up)
+#### b. Kurva Trapesium untuk kategori Baik/Tinggi (*menaik*)
 
 ```
 μ = 0                    jika x ≤ a
@@ -200,7 +204,7 @@ Digunakan untuk kategori **buruk/rendah** ( nilai kecil = derajat tinggi).
     1                    jika x ≥ b
 ```
 
-Parameter: `[a, b]`
+Parameter dari kurva trapesium `[a, b, c, d]`, bagian menaik menggunakan **a** dan **b** (index [0] dan [1]).
 
 Digunakan untuk kategori **baik/tinggi** (nilai besar = derajat tinggi).
 
@@ -214,9 +218,9 @@ Digunakan untuk kategori **baik/tinggi** (nilai besar = derajat tinggi).
 
 Parameter: `[a, b, c]`
 
-Digunakan untuk kategori **sedang** pada RAM, KesehatanBaterai, dan Processor.
+Digunakan untuk kategori **sedang** pada RAM, KesehatanBaterai.
 
-#### d. Kurva Trapesium (Trapezoidal)
+#### d. Kurva Trapesium penuh (Trapezoidal)
 
 ```
 μ = 0                    jika x ≤ a atau x ≥ d
@@ -227,7 +231,7 @@ Digunakan untuk kategori **sedang** pada RAM, KesehatanBaterai, dan Processor.
 
 Parameter: `[a, b, c, d]`
 
-Digunakan untuk kategori **sedang** pada LCD dan KondisiKeyboard.
+Digunakan untuk kategori **sedang** pada LCD, KondisiKeyboard, dan Processor.
 
 ### 4.2 Inferensi (Mamdani Dinamis)
 
@@ -244,51 +248,55 @@ Tidak seperti pendekatan konvensional dengan aturan tetap, engine ini menggunaka
    ```
    μ_kategori = max(α₁, α₂, ..., αₙ)  untuk semua aturan dengan output = kategori
    ```
-4. **Clipping** untuk memastikan total derajat keanggotaan tidak melebihi 1:
-   ```
-   cukup_layak = min(cukup_layak, 1 - tidak_layak)
-   layak = min(layak, 1 - max(tidak_layak, cukup_layak))
-   ```
-
 Pendekatan ini memungkinkan fleksibilitas penuh dalam mendefinisikan hubungan antar variabel, karena pengirim request dapat menentukan aturan IF-THEN dalam bentuk `[lcd, keyboard, ram, baterai, processor] → output` sebanyak yang diperlukan (hingga 243 kemungkinan kombinasi dari 3⁵).
 
-### 4.3 Defuzzifikasi (Centroid of Area / COA Diskrit)
+### 4.3 Defuzzifikasi (Bisector of Area Sampling)
 
-Berbeda dengan metode centroid weighted average yang menggunakan titik pusat tunggal, engine ini menghitung **Center of Area (COA)** secara diskrit dengan sampling pada rentang 0–100:
+Engine ini menghitung **Bisector of Area (BOA)** secara diskrit dengan sampling float pada rentang 0–100 (step 0.1):
 
 ```
-          Σ(z · μ(z))
-nilai = ─────────────   untuk z = 0, 1, 2, ..., 100
-            Σμ(z)
+TotalArea  = Σ μ(z)       untuk z = 0, 0.1, 0.2, ..., 100.0
+TargetArea = TotalArea / 2
+Cari z dimana akumulasi μ(z) ≥ TargetArea
 ```
 
 Di mana untuk setiap nilai `z`:
-1. Hitung `μ_tidak_layak(z)` dengan kurva turun pada interval `[tidak_layak[0], tidak_layak[1]]`, lalu clip dengan hasil inferensi: `min(μ_tidak_layak(z), nilai_inferensi_tidak_layak)`.
-2. Hitung `μ_cukup_layak(z)` dengan kurva trapesium pada interval `[cukup_layak[0], cukup_layak[1], cukup_layak[2], cukup_layak[3]]`, lalu clip dengan hasil inferensi.
-3. Hitung `μ_layak(z)` dengan kurva naik pada interval `[layak[0], layak[1]]`, lalu clip dengan hasil inferensi.
+1. Hitung `μ_tidak_layak(z)` dengan kurva turun pada interval `[tidak_layak[2], tidak_layak[3]]` (*c* ke *d*, bagian menurun), lalu clip: `min(μ_tidak_layak(z), nilai_inferensi_tidak_layak)`.
+2. Hitung `μ_cukup_layak(z)` dengan kurva trapesium pada interval `[cukup_layak[0], cukup_layak[1], cukup_layak[2], cukup_layak[3]]`, lalu clip.
+3. Hitung `μ_layak(z)` dengan kurva naik pada interval `[layak[0], layak[1]]` (*a* ke *b*, bagian menaik), lalu clip.
 4. Ambil nilai maksimum dari ketiganya sebagai `μ(z)`.
 
-Parameter defuzzifikasi dikirim dalam `rules.defuzzifikasi` sebagai **parameter kurva**, bukan titik centroid:
+**Parameter defuzzifikasi** dikirim sebagai parameter kurva trapesium penuh `[a, b, c, d]`:
 
 ```json
 {
-    "tidak_layak": [30, 50],
-    "cukup_layak": [40, 60, 70, 90],
-    "layak": [80, 100]
+    "tidak_layak": [0, 0, 55, 65],
+    "cukup_layak": [55, 65, 85, 90],
+    "layak": [85, 90, 100, 100]
 }
 ```
 
 Jika total `Σμ(z) = 0` (penyebut = 0), maka nilai kelayakan dikembalikan sebagai **50** (nilai tengah).
 
-### 4.4 Penentuan Status
+### 4.4 Penentuan Status (Dinamis)
 
-Menggunakan batas *hardcoded* (tidak dari request):
+Menggunakan batas **dinamis** dari `rules.thresholds` (dikirim oleh BackendService, bersumber dari tabel `fuzzy_thresholds` di database):
+
+```
+if nilaiKelayakan ≤ batasTidakLayak → "Tidak Layak"
+if batasTidakLayak < nilaiKelayakan ≤ batasLayak → "Cukup Layak"
+if nilaiKelayakan > batasLayak → "Layak"
+```
+
+Default (jika thresholds tidak dikirim):
 
 | Rentang Skor | Status |
 |---|---|
 | 0 – 65 | **Tidak Layak** |
 | >65 – 85 | **Cukup Layak** |
 | >85 – 100 | **Layak** |
+
+Dengan menyimpan thresholds di database, skenario **"ubah parameter batas kelayakan di DB → request ulang"** dapat dilakukan tanpa deploy ulang kode.
 
 ### Contoh Perhitungan Lengkap
 
@@ -370,6 +378,10 @@ php artisan test
 
 > **Catatan:** Service ini **tidak** memerlukan koneksi database. Semua data dikirim dinamis melalui request.
 
+### CORS
+
+Meskipun EvaluatorService umumnya dipanggil secara internal oleh BackendService (server-to-server), CORS tetap dikonfigurasi permissif (`config/cors.php`: `allowed_origins => ['*']`) untuk fleksibilitas pengujian langsung dari klien HTTP.
+
 ---
 
-*Dokumentasi ini diperbarui pada 9 Juni 2026.*
+*Dokumentasi ini diperbarui pada 21 Juni 2026.*

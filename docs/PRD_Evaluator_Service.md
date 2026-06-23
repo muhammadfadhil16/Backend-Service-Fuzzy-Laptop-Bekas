@@ -73,20 +73,24 @@ Digunakan untuk melakukan kalkulasi mesin fuzzy.
   },
   "rules": {
     "fuzzifikasi": {
-      "LCD": { "buruk": [0, 50], "sedang": [40, 55, 75, 85], "baik": [75, 100] },
-      "KondisiKeyboard": { "buruk": [0, 50], "sedang": [40, 55, 75, 85], "baik": [75, 100] },
-      "RAM": { "rendah": [0, 4], "sedang": [4, 8, 16], "tinggi": [8, 16] },
-      "KesehatanBaterai": { "rendah": [0, 50], "sedang": [40, 60, 80], "tinggi": [75, 100] },
-      "Processor": { "rendah": [0, 5000], "sedang": [4000, 10000, 15000], "tinggi": [12000, 25000] }
+      "LCD": { "buruk": [0, 0, 55, 65], "sedang": [55, 65, 75, 85], "baik": [75, 85, 100, 100] },
+      "KondisiKeyboard": { "buruk": [0, 0, 55, 65], "sedang": [55, 65, 75, 85], "baik": [75, 85, 100, 100] },
+      "RAM": { "rendah": [4, 4, 6, 8], "sedang": [6, 8, 12], "tinggi": [8, 12, 64, 64] },
+      "KesehatanBaterai": { "rendah": [0, 0, 60, 70], "sedang": [60, 70, 85], "tinggi": [70, 85, 100, 100] },
+      "Processor": { "rendah": [0, 0, 8000, 10000], "sedang": [8000, 10000, 18000, 20000], "tinggi": [18000, 20000, 64946, 64946] }
     },
     "matrix_aturan": [
       { "lcd": "baik", "keyboard": "baik", "ram": "sedang", "baterai": "sedang", "processor": "sedang", "output": "layak" },
       { "lcd": "buruk", "keyboard": "buruk", "ram": "rendah", "baterai": "rendah", "processor": "rendah", "output": "tidak_layak" }
     ],
     "defuzzifikasi": {
-      "tidak_layak": [0, 65],
+      "tidak_layak": [0, 0, 55, 65],
       "cukup_layak": [55, 65, 85, 90],
-      "layak": [85, 100]
+      "layak": [85, 90, 100, 100]
+    },
+    "thresholds": {
+      "tidak_layak_batas": 65.00,
+      "layak_batas": 85.00
     }
   }
 }
@@ -105,12 +109,15 @@ Digunakan untuk melakukan kalkulasi mesin fuzzy.
 }
 ```
 
-**Status kelayakan:**
-| Rentang Skor | Status |
-|---|---|
-| 0 – 65 | **Tidak Layak** |
-| >65 – 85 | **Cukup Layak** |
-| >85 – 100 | **Layak** |
+**Status kelayakan (dinamis):**
+Batas penentuan status dikirim melalui `rules.thresholds` dan dapat diubah tanpa deploy ulang:
+
+| Parameter | Default | Keterangan |
+|---|---|---|
+| `thresholds.tidak_layak_batas` | 65.00 | Skor ≤ batas ini → **Tidak Layak** |
+| `thresholds.layak_batas` | 85.00 | Skor > batas ini → **Layak** (sisanya **Cukup Layak**) |
+
+Default jika thresholds tidak dikirim: Tidak Layak ≤ 65, Cukup Layak ≤ 85, Layak > 85.
 
 ---
 
@@ -141,6 +148,7 @@ Digunakan untuk melakukan kalkulasi mesin fuzzy.
 *   **Dependensi Microservice:** Keakuratan skor kelayakan sepenuhnya bergantung pada ketersediaan dan logika di `EvaluatorService`. Jika service tersebut mati, `BackendService` tidak dapat menghitung skor baru.
 *   **Koneksi Internet:** Diperlukan koneksi internet aktif untuk memanggil API Gemini AI. Jika koneksi terputus, sistem akan menggunakan *local fallback recommendation* (Simulasi AI).
 *   **Skalabilitas Database:** Database MySQL dirancang untuk penyimpanan riwayat penilaian, bukan untuk database spesifikasi laptop (katalog) yang sangat besar.
+*   **CORS Configuration:** EvaluatorService juga memiliki konfigurasi CORS permissif (`allowed_origins => ['*']`) untuk fleksibilitas pengujian dan integrasi langsung jika diperlukan.
 
 ### 7.3 Target Lingkungan
 *   Proyek ini dioptimalkan untuk berjalan di lingkungan **Docker**.
@@ -155,4 +163,4 @@ Digunakan untuk melakukan kalkulasi mesin fuzzy.
 
 ---
 
-*Dokumen ini diperbarui pada 13 Juni 2026.*
+*Dokumen ini diperbarui pada 21 Juni 2026.*
